@@ -462,9 +462,39 @@ HRESULT Archive_GetItemBoolProp(IInArchive *arc, UInt32 index, PROPID propID, bo
   return S_OK;
 }
 
+HRESULT Archive_GetItemStringPropSet(IInArchive *arc, UInt32 index, PROPID propID, bool &result) throw()
+{
+  NCOM::CPropVariant prop;
+  RINOK(arc->GetProperty(index, propID, &prop));
+  if (prop.vt == VT_BSTR)
+  {
+    result = prop.bstrVal != 0;
+  }
+  else if (prop.vt == VT_EMPTY) {
+    result = false;
+  }
+  return S_OK;
+}
+
 HRESULT Archive_IsItem_Dir(IInArchive *arc, UInt32 index, bool &result) throw()
 {
   return Archive_GetItemBoolProp(arc, index, kpidIsDir, result);
+}
+
+HRESULT Archive_IsItem_Symlink(IInArchive *arc, UInt32 index, bool &result) throw()
+{
+  return Archive_GetItemStringPropSet(arc, index, kpidSymLink, result);
+}
+
+HRESULT Archive_IsItem_RegularDir(IInArchive *arc, UInt32 index, bool &result) throw()
+{
+  bool isSymlink;
+  RINOK(Archive_IsItem_Symlink(arc, index, isSymlink));
+  if (isSymlink) {
+    result = false;
+    return S_OK;
+  }
+  return Archive_IsItem_Dir(arc, index, result);
 }
 
 HRESULT Archive_IsItem_Aux(IInArchive *arc, UInt32 index, bool &result) throw()
@@ -830,7 +860,7 @@ HRESULT CArc::GetItem(UInt32 index, CReadArcItem &item) const
   
   item.PathParts.Clear();
 
-  RINOK(Archive_IsItem_Dir(Archive, index, item.IsDir));
+  RINOK(Archive_IsItem_RegularDir(Archive, index, item.IsDir));
   item.MainIsDir = item.IsDir;
 
   RINOK(GetItem_Path2(index, item.Path));
